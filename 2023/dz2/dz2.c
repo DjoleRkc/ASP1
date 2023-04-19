@@ -6,11 +6,14 @@
 
 int n, m, sizeOfRules;
 
+//rules - pravila igranja
+//matrix - svi pojmovi
+
 typedef struct node
 {
 	int level;
 	struct node** children, * parent;
-	bool isValid, isLeaf;
+	int isValid;
 	char*** currentState;
 	bool** used;
 } Node;
@@ -49,24 +52,27 @@ bool isEmpty(Queue* q) {
 	return !q->front;
 }
 
-Node* createNode(Node* p, char*** matrix, int l, bool** u) {
+Node* createNode(Node* p, char*** currentState, int level, bool** used) {
 	Node* new = malloc(sizeof(Node));
-	new->children = malloc(n * n * m * sizeof(Node));
+	new->children = calloc(n * n * (m), sizeof(Node));
 	new->parent = p;
-	new->level = l;
-	new->currentState = matrix;
-	new->isLeaf = new->isValid = false;
-	new->used = u;
+	new->level = level;
+	new->currentState = currentState;
+	new->isValid = 0;
+	new->used = used;
 	return new;
 }
 
 char*** copyState(char*** currentState) {
-	char*** new = malloc((m + 1) * sizeof(char**));
-	for (size_t i = 0; i < m + 1; i++) {
+	char*** new = malloc(m * sizeof(char**));
+	for (size_t i = 0; i < m; i++) {
 		new[i] = malloc(n * sizeof(char*));
 		for (size_t j = 0; j < n; j++) {
-			new[i][j] = malloc((strlen(currentState[i][j]) + 1 )* sizeof(char));
-			strcpy(new[i][j], currentState[i][j]);
+			if (currentState[i][j]) {
+				new[i][j] = malloc((strlen(currentState[i][j]) + 1) * sizeof(char));
+				strcpy(new[i][j], currentState[i][j]);
+			}
+			else new[i][j] = NULL;
 		}
 	}
 	return new;
@@ -81,14 +87,26 @@ bool** copyUsed(bool** used) {
 	return new;
 }
 
-void levelOrder(Node* root) {
+void printMatrix(char*** currentState) {
+	for (int i = 0; i < m; i++)
+	{
+		for (int j = 0; j < n; j++) printf("%10s ", currentState[i][j] ? currentState[i][j] : " ");
+		putchar('\n');
+	}
+	putchar('\n');
+}
+
+void printTree(Node* root) {
+	int oldLevel = -1;
 	Queue* q = malloc(sizeof(Queue));
 	q->front = q->rear = NULL;
 	insert(root, q);
 	while (!isEmpty(q)) {
 		Node* curr = dequeue(q);
-		printf("%d ", curr->level);
-		for (size_t i = 0; i < n*n*m; i++)
+		if (curr->level > oldLevel) printf("\n\n\n\n\n\n\n\t\tNivo: %d\n\n\n\n\n\n", curr->level);
+		oldLevel = curr->level;
+		printMatrix(curr->currentState);
+		for (size_t i = 0; i < n * n * m; i++)
 		{
 			if (curr->children[i]) insert(curr->children[i], q);
 		}
@@ -96,20 +114,12 @@ void levelOrder(Node* root) {
 
 }
 
-void printMatrix(char*** matrix) {
-	for (int i = 0; i < m; i++)
-	{
-		for (int j = 0; j < n; j++) printf("%s ", matrix[i][j]);
-		putchar('\n');
-	}
-}
-
 char*** readFile(FILE* file, char*** matrix) {
 	char** tmp = malloc(300*sizeof(char));
 	fscanf(file, "%d\n%d\n", &n, &m);
 	for (int i = 0; i < m; i++) {
 		matrix[i] = malloc(n * sizeof(char*));
-		fscanf(file, "%s", tmp);
+		fscanf(file, "%s\n", tmp);
 		char** token = strtok(tmp, ",");
 		for (int j = 0; j < n; j++)
 		{
@@ -130,7 +140,7 @@ char*** readFile(FILE* file, char*** matrix) {
 		rules[sizeOfRules][0] = realloc(rules[sizeOfRules][0], strlen(rules[sizeOfRules][0]) + 1);
 		rules[sizeOfRules][1] = realloc(rules[sizeOfRules][1], strlen(rules[sizeOfRules][1]) + 1);
 		rules[sizeOfRules][2][1] = '\0';
-		rules[++sizeOfRules] = malloc(2 * sizeof(char*));
+		rules[++sizeOfRules] = malloc(3 * sizeof(char*));
 		rules[sizeOfRules][0] = malloc(100 * sizeof(char));
 		rules[sizeOfRules][1] = malloc(100 * sizeof(char));
 		rules[sizeOfRules][2] = malloc(2 * sizeof(char));
@@ -140,7 +150,9 @@ char*** readFile(FILE* file, char*** matrix) {
 
 char*** readConsole(char*** matrix) {
 	char** tmp = malloc(300 * sizeof(char));
+	printf("Unesi n i m: ");
 	scanf("%d\n%d\n", &n, &m);
+	printf("Unesi sve pojmove odvojene razmacima:\n");
 	for (int i = 0; i < m; i++) {
 		matrix[i] = malloc(n * sizeof(char*));
 		for (int j = 0; j < n; j++)
@@ -153,11 +165,12 @@ char*** readConsole(char*** matrix) {
 	char*** rules = malloc(50 * sizeof(char**));
 	char** tmp2 = malloc(100 * sizeof(char));
 	sizeOfRules = 0;
+	printf("Unesi sva pravila:\n");
 	getchar();
 	while (scanf("%[^ \n]", tmp2) == 1)
 	{
 		getchar();
-		rules[sizeOfRules] = malloc(2 * sizeof(char*));
+		rules[sizeOfRules] = malloc(3 * sizeof(char*));
 		rules[sizeOfRules][0] = malloc(100 * sizeof(char));
 		rules[sizeOfRules][1] = malloc(100 * sizeof(char));
 		rules[sizeOfRules][2] = malloc(2 * sizeof(char));
@@ -170,25 +183,280 @@ char*** readConsole(char*** matrix) {
 	return rules;
 }
 
-int main() {
-	FILE* f = fopen("test33-ok.txt", "r");
-	char*** matrix = malloc((m + 1) * sizeof(char**));
-	//char*** rules = readFile(f, matrix);
-	char*** rules = readConsole(matrix);
-	for (size_t i = 0; i < sizeOfRules; i++)
+int findRow(char* term, char*** matrix) {
+	for (size_t i = 0; i < m; i++)
 	{
-		printf("%s %s %s\n", rules[i][0], rules[i][1], rules[i][2]);
+		for (size_t j = 0; j < n; j++) if (strcmp(matrix[i][j], term) == 0) return i;
 	}
-	/*n = 3, m = 2;
-	char*** matrix = malloc((m + 1) * sizeof(char**));
-	for (int i = 0; i < m + 1; i++) {
-		matrix[i] = malloc(n * sizeof(char*));
-		for (int j = 0; j < n; j++)
+	return -1;
+}
+
+int findColumn(char* term, char*** matrix) {
+	for (size_t i = 0; i < m; i++)
+	{
+		for (size_t j = 0; j < n; j++) if (strcmp(matrix[i][j], term) == 0) return j;
+	}
+
+	return -1;
+}
+
+int isValid(char*** currentState, int row, int column, char*** rules, char* term, char*** matrix) {
+	for (size_t i = 0; i < m; i++)
+	{
+		if (currentState[i][column]) {
+			for (size_t j = 0; j < sizeOfRules; j++)
+			{
+				if(strcmp(rules[j][0], term) == 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
+				if(strcmp(rules[j][1], term) == 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
+				if (strcmp(rules[j][0], term) == 0 && strcmp(rules[j][1], currentState[i][column]) != 0 && i == findRow(rules[j][1], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+				if (strcmp(rules[j][1], term) == 0 && strcmp(rules[j][0], currentState[i][column]) != 0 && i == findRow(rules[j][0], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+				if(strcmp(rules[j][0], term) != 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && row == findRow(rules[j][0], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+				if(strcmp(rules[j][1], term) != 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && row == findRow(rules[j][1], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+			}
+		}
+
+	}
+	return 0;
+
+}
+
+void createTree(Node* root, char*** rules, char*** matrix) {
+	Queue* q = malloc(sizeof(Queue));
+	q->front = q->rear = NULL;
+	insert(root, q);
+
+	while (!isEmpty(q)) {
+
+		Node* curr = dequeue(q);
+		if (curr->isValid == -1) continue;
+		int childrenCounter = 0;
+
+		for (size_t i = 1; i < m; i++)
 		{
-			matrix[i][j] = malloc(100 * sizeof(char));
-			scanf("%s", matrix[i][j]);
-			matrix[i][j] = realloc(matrix[i][j], strlen(matrix[i][j]) + 1);
+			for (size_t j = 0; j < n; j++)
+			{
+				if (!curr->currentState[i][j]) {
+					for (size_t l = 0; l < n; l++)
+					{
+						if (!curr->used[i][l]) {
+							Node* child = createNode(curr, copyState(curr->currentState), curr->level + 1, copyUsed(curr->used));
+							child->isValid = isValid(child->currentState, i, j, rules, matrix[i][l], matrix);
+							child->currentState[i][j] = malloc(strlen(matrix[i][l]) * sizeof(char));
+							strcpy(child->currentState[i][j], matrix[i][l]);
+							child->used[i][l] = true;
+							curr->children[childrenCounter++] = child;
+						}
+					}
+				}
+			}
+		}
+		if (!childrenCounter && curr->isValid == 0) {
+			Node* temp = curr;
+			while (temp) {
+				temp->isValid = 1;
+				temp = temp->parent;
+			}
+		}
+		for (size_t i = 0; i < childrenCounter; i++)
+		{
+			if (curr->children[i]) insert(curr->children[i], q);
+		}
+
+
+	}
+}
+
+void printAllSolutions(Node* root) {
+	Queue* q = malloc(sizeof(Queue));
+	q->front = q->rear = NULL;
+	insert(root, q);
+	while (!isEmpty(q)) {
+		Node* curr = dequeue(q);
+		int childrenCounter = 0;
+		for (size_t i = 0; i < n * n * m; i++)
+		{
+			if (curr->children[i]) {
+				insert(curr->children[i], q);
+				childrenCounter++;
+			}
+		}
+
+		if (!childrenCounter && curr->isValid == 1) {
+			printMatrix(curr->currentState); 
+			return;
 		}
 	}
-	printMatrix(matrix);*/
+}
+
+bool equalStates(char*** state1, char*** state2) {
+	for (size_t i = 0; i < m; i++)
+	{
+		for (size_t j = 0; j < n; j++)
+		{
+			if ((state1[i][j] && state2[i][j] && strcmp(state1[i][j], state2[i][j]) != 0) || (!state1[i][j] && state2[i][j]) || (state1[i][j] && !state2[i][j])) return false;
+		}
+	}
+
+	return true;
+}
+
+int main() {
+//isValid - 0 ne vodi resenju, 1 - vodi res. -1 prekrseno pravilo
+	char*** rules, ***matrix = malloc((m) * sizeof(char**));
+	int option;
+	bool validTerm = false;
+	char* fileName = malloc(100*sizeof(char)), *column = malloc(50*sizeof(char)), *term = malloc(50 * sizeof(char));
+	while (true) {
+		printf("Unesi 0 za unos iz fajla ili 1 za unos sa konzole: ");
+		scanf("%d", &option);
+		if (option == 0) {
+			printf("Unesi ime fajla koji zelis da ucitas: ");
+			scanf("%s", fileName);
+			FILE* f = fopen(fileName, "r");
+			if (!f) {
+				printf("Fajl ne postoji, pokusaj ponovo\n");
+				continue;
+			}
+			rules = readFile(f, matrix);
+			break;
+		}
+
+		else if (option == 1) {
+			rules = readConsole(matrix);
+			break;
+		}
+
+		else {
+			printf("Nisi uneo dobru opciju, pokusaj ponovo.\n");
+		}
+	}
+
+	char*** currentState = malloc(m * sizeof(char**));
+	bool** used = malloc(m * sizeof(bool*));
+
+	for (int i = 0; i < m; i++) {
+		currentState[i] = malloc(n * sizeof(char*));
+		for (int j = 0; j < n; j++)
+		{
+			if (i == 0) {
+				currentState[i][j] = malloc(strlen((matrix[i][j]) + 1) * sizeof(char));
+				strcpy(currentState[i][j], matrix[i][j]);
+
+			}
+			else currentState[i][j] = NULL;
+		}
+	}
+
+	for (int i = 0; i < m; i++) used[i] = calloc(n, sizeof(bool));
+
+	Node* root = createNode(NULL, currentState, 0, used);
+	Node* curr = root;
+	createTree(root, rules, matrix);
+
+	printf("Stablo je kreirano!\n");
+
+	while (true) {
+		printf("\n\n0) Prekini program\n1) Ispisi stablo\n2) Ispisi sva resenja\n3) Odigraj sledeci potez\n4) Da li si na dobrom putu?\n5) Pomoc prijatelja\n\n");
+		scanf("%d", &option);
+		switch (option) {
+		case 0:
+			printf("Kraj igre.\n");
+			exit(0);
+		case 1:
+			printTree(root);
+			break;
+		case 2:
+			if (root->isValid == 0) printf("Nema resenja.\n");
+			printAllSolutions(root);
+			break;
+		case 3:
+			printMatrix(curr->currentState);
+			printf("\nKoji potez zelis da odigras? Ako mislis da ova igra nema resenja, unesi 'nema resenja'\n");
+			scanf("%s %s", column, term);
+			putchar('\n');
+			if (strcmp(column, "nema") == 0 && strcmp(term, "resenja") == 0 && root->isValid == 0) {
+				printf("Bravo, resio si igru, trenutna igra nema nijedno resenje!\n");
+				curr = root;
+				break;
+			}
+
+			else if (strcmp(column, "nema") == 0 && strcmp(term, "resenja") == 0 && root->isValid != 0) {
+				printf("Nisi u pravu, igra ima resenje, nastavi dalje!\n");
+				printf("\nKoji potez zelis da odigras?\n");
+				scanf("%s %s", column, term);
+			}
+			if (findRow(term, matrix) == -1 || findColumn(column, matrix) == -1) {
+				printf("Ne postoji neki od pojmova koje si uneo!\n");
+				break;
+			}
+			char*** tmp = copyState(curr->currentState);
+			if (tmp[findRow(term, matrix)][findColumn(column, matrix)]) {
+				printf("Pojmovi iz ove dve grupe su vec upareni, pokusaj ponovo\n");
+				break;
+			} 
+			tmp[findRow(term, matrix)][findColumn(column, matrix)] = term;
+
+			for (size_t i = 0; i < n*n*m; i++)
+			{
+				if (!curr->children[i]) break;
+				if (equalStates(curr->children[i]->currentState, tmp)) {
+					curr = curr->children[i];
+					validTerm = true;
+					if (curr->isValid == 1 && curr->level == (m - 1) * n) printf("Cestitamo, resio si igru!\n");
+					else if (curr->level != (m - 1) * n) printf("\nStanje nakon odigranog poteza:\n");
+					else printf("Stigao si do kraja igre ali nisi uspeo da nadjes resenje :(\n");
+					printMatrix(curr->currentState);
+					break;
+				}
+			}
+
+			if (curr->level == (m - 1) * n) curr = root;
+
+
+			if (!validTerm) {
+				printf("Uneo si pojam koji ne postoji, pokusaj ponovo\n");
+				break;
+			}
+
+			if (curr->isValid == -1) {
+				printf("Prekrsio si pravila uparivanja, igra je gotova.\n");
+				curr = root;
+				break;
+			}
+			break;
+		case 4:
+			if (curr->isValid == 1) printf("Trenutno stanje vodi ka resenju :)\n");
+			else printf("Trenutno stanje ne vodi ka resenju :(\n");
+			break;
+
+		case 5:
+			if (curr->isValid == 0) {
+				printf("Ne mogu ti pomoci jer trenutno stanje ne vodi ka resenju\n");
+				break;
+			}
+			printf("Trenutno stanje je:\n");
+			printMatrix(curr->currentState);
+			for (size_t i = 0; i < n * n * m; i++)
+			{
+				if (!curr->children[i]) break;
+				if (curr->children[i]->isValid == 1) {
+					curr = curr->children[i];
+					validTerm = true;
+					if (curr->isValid == 1 && curr->level == (m - 1) * n) printf("Stigao si do kraja, resenje igre je:\n");
+					else printf("\nStanje nakon pomocnog poteza:\n");
+					printMatrix(curr->currentState);
+					break;
+				}
+			}
+
+			if (curr->level == (m - 1) * n) curr = root;
+			break;
+
+		default:
+			printf("Nisi uneo validnu opciju, pokusaj opet\n");
+		}
+		
+	}
+
+	
 }
