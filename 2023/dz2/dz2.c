@@ -4,14 +4,14 @@
 #include <string.h>
 #define _CRT_SECURE_NO_WARNINGS
 
-int n, m, sizeOfRules;
+int n, m, sizeOfRules, numOfSolutions;
 
 //rules - pravila igranja
 //matrix - svi pojmovi
 
 typedef struct node
 {
-	int level;
+	int level, id, numOfChildren;
 	struct node** children, * parent;
 	int isValid;
 	char*** currentState;
@@ -24,7 +24,7 @@ typedef struct queueNode {
 } QueueNode;
 
 typedef struct queue {
-	QueueNode* front, *rear;
+	QueueNode* front, * rear;
 } Queue;
 
 
@@ -35,7 +35,7 @@ void insert(Node* info, Queue* q) {
 	if (!q->rear) q->front = new;
 	else q->rear->next = new;
 	q->rear = new;
-	
+
 }
 
 Node* dequeue(Queue* q) {
@@ -58,11 +58,12 @@ Node* createNode(Node* p, char*** currentState, int level, bool** used) {
 	new->parent = p;
 	new->level = level;
 	new->currentState = currentState;
-	new->isValid = 0;
+	new->isValid = new->id = new->numOfChildren = 0;
 	new->used = used;
 	return new;
 }
 
+//fja za kopiranje trenutnog stanja igre
 char*** copyState(char*** currentState) {
 	char*** new = malloc(m * sizeof(char**));
 	for (size_t i = 0; i < m; i++) {
@@ -78,6 +79,8 @@ char*** copyState(char*** currentState) {
 	return new;
 }
 
+
+//fja za kopiranje matrice koji pojmovi su vec iskorisceni
 bool** copyUsed(bool** used) {
 	bool** new = malloc(m * sizeof(bool*));
 	for (int i = 0; i < m; i++) {
@@ -90,7 +93,7 @@ bool** copyUsed(bool** used) {
 void printMatrix(char*** currentState) {
 	for (int i = 0; i < m; i++)
 	{
-		for (int j = 0; j < n; j++) printf("%10s ", currentState[i][j] ? currentState[i][j] : " ");
+		for (int j = 0; j < n; j++) printf("%10s ", currentState[i][j] ? currentState[i][j] : "-");
 		putchar('\n');
 	}
 	putchar('\n');
@@ -105,6 +108,7 @@ void printTree(Node* root) {
 		Node* curr = dequeue(q);
 		if (curr->level > oldLevel) printf("\n\n\n\n\n\n\n\t\tNivo: %d\n\n\n\n\n\n", curr->level);
 		oldLevel = curr->level;
+		printf("\nID: %d PAR_ID: %d NUM_OF_CHILDREN: %d IS_VALID: %s LEADS_TO_SOLUTION: %s\n", curr->id, curr->parent ? curr->parent->id: -1, curr->numOfChildren, curr->isValid != -1 ? "YES" : "NO", curr->isValid == 1 ? "YES" : "NO");
 		printMatrix(curr->currentState);
 		for (size_t i = 0; i < n * n * m; i++)
 		{
@@ -115,7 +119,7 @@ void printTree(Node* root) {
 }
 
 char*** readFile(FILE* file, char*** matrix) {
-	char** tmp = malloc(300*sizeof(char));
+	char** tmp = malloc(300 * sizeof(char));
 	fscanf(file, "%d\n%d\n", &n, &m);
 	for (int i = 0; i < m; i++) {
 		matrix[i] = malloc(n * sizeof(char*));
@@ -123,7 +127,7 @@ char*** readFile(FILE* file, char*** matrix) {
 		char** token = strtok(tmp, ",");
 		for (int j = 0; j < n; j++)
 		{
-			matrix[i][j] = malloc(100*sizeof(char));
+			matrix[i][j] = malloc(100 * sizeof(char));
 			strcpy(matrix[i][j], token);
 			matrix[i][j] = realloc(matrix[i][j], strlen(matrix[i][j]) + 1);
 			token = strtok(NULL, ",");
@@ -150,9 +154,9 @@ char*** readFile(FILE* file, char*** matrix) {
 
 char*** readConsole(char*** matrix) {
 	char** tmp = malloc(300 * sizeof(char));
-	printf("Unesi n i m: ");
-	scanf("%d\n%d\n", &n, &m);
-	printf("Unesi sve pojmove odvojene razmacima:\n");
+	printf("Unesi n i m:\n");
+	scanf("%d\n%d", &n, &m);
+	printf("\nUnesi sve pojmove odvojene razmacima:\n");
 	for (int i = 0; i < m; i++) {
 		matrix[i] = malloc(n * sizeof(char*));
 		for (int j = 0; j < n; j++)
@@ -178,11 +182,12 @@ char*** readConsole(char*** matrix) {
 		rules[sizeOfRules][0] = realloc(rules[sizeOfRules][0], strlen(rules[sizeOfRules][0]) + 1);
 		rules[sizeOfRules][1] = realloc(rules[sizeOfRules][1], strlen(rules[sizeOfRules][1]) + 1);
 		rules[sizeOfRules++][2][1] = '\0';
-		
+
 	}
 	return rules;
 }
 
+//fja koja pronalazi vrstu u kojoj se nalazi pojam u matrici svih pojmova
 int findRow(char* term, char*** matrix) {
 	for (size_t i = 0; i < m; i++)
 	{
@@ -191,6 +196,7 @@ int findRow(char* term, char*** matrix) {
 	return -1;
 }
 
+//fja koja pronalazi kolonu u kojoj se nalazi pojam u matrici svih pojmova
 int findColumn(char* term, char*** matrix) {
 	for (size_t i = 0; i < m; i++)
 	{
@@ -200,18 +206,19 @@ int findColumn(char* term, char*** matrix) {
 	return -1;
 }
 
+//fja koja proverava da li je trenutni cvor validno stanje ili ne - tj da li je u tr. cvoru prekrseno pravilo igre
 int isValid(char*** currentState, int row, int column, char*** rules, char* term, char*** matrix) {
 	for (size_t i = 0; i < m; i++)
 	{
 		if (currentState[i][column]) {
 			for (size_t j = 0; j < sizeOfRules; j++)
 			{
-				if(strcmp(rules[j][0], term) == 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
-				if(strcmp(rules[j][1], term) == 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
+				if (strcmp(rules[j][0], term) == 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
+				if (strcmp(rules[j][1], term) == 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && strcmp(rules[j][2], "-") == 0) return -1;
 				if (strcmp(rules[j][0], term) == 0 && strcmp(rules[j][1], currentState[i][column]) != 0 && i == findRow(rules[j][1], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
 				if (strcmp(rules[j][1], term) == 0 && strcmp(rules[j][0], currentState[i][column]) != 0 && i == findRow(rules[j][0], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
-				if(strcmp(rules[j][0], term) != 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && row == findRow(rules[j][0], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
-				if(strcmp(rules[j][1], term) != 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && row == findRow(rules[j][1], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+				if (strcmp(rules[j][0], term) != 0 && strcmp(rules[j][1], currentState[i][column]) == 0 && row == findRow(rules[j][0], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
+				if (strcmp(rules[j][1], term) != 0 && strcmp(rules[j][0], currentState[i][column]) == 0 && row == findRow(rules[j][1], matrix) && strcmp(rules[j][2], "+") == 0) return -1;
 			}
 		}
 
@@ -221,6 +228,7 @@ int isValid(char*** currentState, int row, int column, char*** rules, char* term
 }
 
 void createTree(Node* root, char*** rules, char*** matrix) {
+	int id = 1;
 	Queue* q = malloc(sizeof(Queue));
 	q->front = q->rear = NULL;
 	insert(root, q);
@@ -240,6 +248,8 @@ void createTree(Node* root, char*** rules, char*** matrix) {
 					{
 						if (!curr->used[i][l]) {
 							Node* child = createNode(curr, copyState(curr->currentState), curr->level + 1, copyUsed(curr->used));
+							child->id = id++;
+							curr->numOfChildren++;
 							child->isValid = isValid(child->currentState, i, j, rules, matrix[i][l], matrix);
 							child->currentState[i][j] = malloc(strlen(matrix[i][l]) * sizeof(char));
 							strcpy(child->currentState[i][j], matrix[i][l]);
@@ -250,6 +260,7 @@ void createTree(Node* root, char*** rules, char*** matrix) {
 				}
 			}
 		}
+
 		if (!childrenCounter && curr->isValid == 0) {
 			Node* temp = curr;
 			while (temp) {
@@ -266,7 +277,20 @@ void createTree(Node* root, char*** rules, char*** matrix) {
 	}
 }
 
-void printAllSolutions(Node* root) {
+//fja koja proverava da li su dve matrice stanja jednake
+bool equalStates(char*** state1, char*** state2) {
+	for (size_t i = 0; i < m; i++)
+	{
+		for (size_t j = 0; j < n; j++)
+		{
+			if ((state1[i][j] && state2[i][j] && strcmp(state1[i][j], state2[i][j]) != 0) || (!state1[i][j] && state2[i][j]) || (state1[i][j] && !state2[i][j])) return false;
+		}
+	}
+
+	return true;
+}
+
+void printAllSolutions(Node* root, char**** solutions) {
 	Queue* q = malloc(sizeof(Queue));
 	q->front = q->rear = NULL;
 	insert(root, q);
@@ -282,30 +306,104 @@ void printAllSolutions(Node* root) {
 		}
 
 		if (!childrenCounter && curr->isValid == 1) {
-			printMatrix(curr->currentState); 
-			return;
+			bool found = true;
+			for (size_t i = 0; i < numOfSolutions; i++)
+			{
+				if (equalStates(curr->currentState, solutions[i])) { found = false; break; }
+			}
+			if (found) {
+				solutions[numOfSolutions++] = copyState(curr->currentState);
+				int* path = malloc(curr->level * sizeof(int));
+				Node* parent = curr;
+				for (int i = curr->level - 1; i >= 0; i--)
+				{
+					for (size_t j = 0; j < n * n * m; j++)
+					{
+						if (equalStates(parent->currentState, parent->parent->children[j]->currentState)) { path[i] = j; break; }
+					}
+					parent = parent->parent;
+				}
+				printf("Put do %d. resenja je:\n", numOfSolutions);
+				int i = 0;
+				while (parent != curr) {
+					printMatrix(parent->currentState);
+					printf("\t\t   |\n");
+					printf("\t\t   |\n");
+					printf("\t\t   |\n");
+					printf("\t\t  \\/\n");
+					parent = parent->children[path[i++]];
+				}
+				printf("Konacno resenje je:\n");
+				printMatrix(curr->currentState);
+			}
+
 		}
 	}
 }
 
-bool equalStates(char*** state1, char*** state2) {
-	for (size_t i = 0; i < m; i++)
+//levelOrder helper
+//void levelOrder(Node* root) {
+//	Queue* q = malloc(sizeof(Queue));
+//	q->front = q->rear = NULL;
+//	insert(root, q);
+//	while (!isEmpty(q)) {
+//		Node* curr = dequeue(q);
+//		for (size_t i = 0; i < n * n * m; i++)
+//		{
+//			if (curr->children[i]) insert(curr->children[i], q);
+//		}
+//	}
+//}
+
+//Formatted tree
+void printFormattedTree(Node* root) {
+	int br = 0;
+	char*** matrix = malloc(m * sizeof(char**));
+	for (size_t k = 0; k < m; k++)
 	{
+		br = 0;
+		matrix[k] = malloc(n * n * (m - 1) * n * sizeof(char*));
 		for (size_t j = 0; j < n; j++)
 		{
-			if ((state1[i][j] && state2[i][j] && strcmp(state1[i][j], state2[i][j]) != 0) || (!state1[i][j] && state2[i][j]) || (state1[i][j] && !state2[i][j])) return false;
+			for (size_t i = 0; i < 5; i++)
+			{
+				if (i < 4 && root->children[i]->currentState[k][j]) {
+					matrix[k][br] = malloc((strlen(root->children[i]->currentState[k][j]) + 1) * sizeof(char));
+					strcpy(matrix[k][br++], root->children[i]->currentState[k][j]);
+				}
+
+				else if (i < 4) matrix[k][br++] = NULL;
+				else if(i==4 && root->children[n * n * (m - 1) - 1]->currentState[k][j]) {
+					matrix[k][br] = malloc(6 * sizeof(char));
+					strcpy(matrix[k][br++], "\t...\t");
+
+					matrix[k][br] = malloc((strlen(root->children[n*n*(m-1)-1]->currentState[k][j]) + 1) * sizeof(char));
+					strcpy(matrix[k][br++], root->children[n * n * (m - 1) - 1]->currentState[k][j]);
+				}
+
+				else matrix[k][br++] = NULL;
+			}
 		}
 	}
-
-	return true;
+	printMatrix(root->currentState);
+	for (int i = 0; i < m; i++)
+	{
+		for (int j = 0; j < br; j++) printf("%10s ", matrix[i][j] ? matrix[i][j] : "-");
+		putchar('\n');
+	}
+	putchar('\n');
 }
 
+
 int main() {
-//isValid - 0 ne vodi resenju, 1 - vodi res. -1 prekrseno pravilo
-	char*** rules, ***matrix = malloc((m) * sizeof(char**));
+	//isValid - 0 ne vodi resenju, 1 - vodi res. -1 prekrseno pravilo
+	int value = 1;
+	bool leftToPair = true;
+	char**** solutions = malloc(20 * sizeof(char***));
+
+	char*** rules, *** matrix = malloc((m) * sizeof(char**));
 	int option;
-	bool validTerm = false;
-	char* fileName = malloc(100*sizeof(char)), *column = malloc(50*sizeof(char)), *term = malloc(50 * sizeof(char));
+	char* fileName = malloc(100 * sizeof(char)), * column = malloc(50 * sizeof(char)), * term = malloc(50 * sizeof(char));
 	while (true) {
 		printf("Unesi 0 za unos iz fajla ili 1 za unos sa konzole: ");
 		scanf("%d", &option);
@@ -366,8 +464,9 @@ int main() {
 			printTree(root);
 			break;
 		case 2:
+			numOfSolutions = 0;
 			if (root->isValid == 0) printf("Nema resenja.\n");
-			printAllSolutions(root);
+			printAllSolutions(root, solutions);
 			break;
 		case 3:
 			printMatrix(curr->currentState);
@@ -393,15 +492,14 @@ int main() {
 			if (tmp[findRow(term, matrix)][findColumn(column, matrix)]) {
 				printf("Pojmovi iz ove dve grupe su vec upareni, pokusaj ponovo\n");
 				break;
-			} 
+			}
 			tmp[findRow(term, matrix)][findColumn(column, matrix)] = term;
 
-			for (size_t i = 0; i < n*n*m; i++)
+			for (size_t i = 0; i < n * n * m; i++)
 			{
 				if (!curr->children[i]) break;
 				if (equalStates(curr->children[i]->currentState, tmp)) {
 					curr = curr->children[i];
-					validTerm = true;
 					if (curr->isValid == 1 && curr->level == (m - 1) * n) printf("Cestitamo, resio si igru!\n");
 					else if (curr->level != (m - 1) * n) printf("\nStanje nakon odigranog poteza:\n");
 					else printf("Stigao si do kraja igre ali nisi uspeo da nadjes resenje :(\n");
@@ -412,11 +510,6 @@ int main() {
 
 			if (curr->level == (m - 1) * n) curr = root;
 
-
-			if (!validTerm) {
-				printf("Uneo si pojam koji ne postoji, pokusaj ponovo\n");
-				break;
-			}
 
 			if (curr->isValid == -1) {
 				printf("Prekrsio si pravila uparivanja, igra je gotova.\n");
@@ -430,18 +523,21 @@ int main() {
 			break;
 
 		case 5:
-			if (curr->isValid == 0) {
-				printf("Ne mogu ti pomoci jer trenutno stanje ne vodi ka resenju\n");
-				break;
-			}
+			//if (curr->isValid == 0) { printf("Ne mogu ti pomoci jer trenutno stanje ne vodi ka resenju\n"); break; }
+
 			printf("Trenutno stanje je:\n");
 			printMatrix(curr->currentState);
+
+			if (curr->isValid == 0) value = 0;
+
+			leftToPair = true;
+
 			for (size_t i = 0; i < n * n * m; i++)
 			{
 				if (!curr->children[i]) break;
-				if (curr->children[i]->isValid == 1) {
+				if (curr->children[i]->isValid == value) {
 					curr = curr->children[i];
-					validTerm = true;
+					leftToPair = false;
 					if (curr->isValid == 1 && curr->level == (m - 1) * n) printf("Stigao si do kraja, resenje igre je:\n");
 					else printf("\nStanje nakon pomocnog poteza:\n");
 					printMatrix(curr->currentState);
@@ -449,14 +545,14 @@ int main() {
 				}
 			}
 
+			if (leftToPair) printf("Nemam vise pojmova da uparim po pravilima, ne mogu ti pomoci dalje");
+
 			if (curr->level == (m - 1) * n) curr = root;
 			break;
 
 		default:
 			printf("Nisi uneo validnu opciju, pokusaj opet\n");
 		}
-		
-	}
 
-	
+	}
 }
