@@ -108,8 +108,11 @@ void printTree(Node* root) {
 		Node* curr = dequeue(q);
 		if (curr->level > oldLevel) printf("\n\n\n\n\n\n\n\t\tNivo: %d\n\n\n\n\n\n", curr->level);
 		oldLevel = curr->level;
-		printf("\nID: %d PAR_ID: %d NUM_OF_CHILDREN: %d IS_VALID: %s LEADS_TO_SOLUTION: %s\n", curr->id, curr->parent ? curr->parent->id: -1, curr->numOfChildren, curr->isValid != -1 ? "YES" : "NO", curr->isValid == 1 ? "YES" : "NO");
-		printMatrix(curr->currentState);
+		if (curr->isValid != -1) {
+			printf("\nID: %d PAR_ID: %d NUM_OF_CHILDREN: %d LEADS_TO_SOLUTION: %s\n", curr->id, curr->parent ? curr->parent->id : -1, curr->numOfChildren, curr->isValid == 1 ? "YES" : "NO");
+			printMatrix(curr->currentState);
+		}
+		
 		for (size_t i = 0; i < n * n * m; i++)
 		{
 			if (curr->children[i]) insert(curr->children[i], q);
@@ -359,32 +362,31 @@ void printAllSolutions(Node* root, char**** solutions) {
 void printFormattedTree(Node* root) {
 	int br = 0;
 	char*** matrix = malloc(m * sizeof(char**));
-	for (size_t k = 0; k < m; k++)
+	for (int i = 0; i < m; i++)
+		matrix[i] = calloc(n * n * (m - 1) * n, sizeof(char*));
+
+	for (int k = 0; k < m; k++)
 	{
-		br = 0;
-		matrix[k] = malloc(n * n * (m - 1) * n * sizeof(char*));
-		for (size_t j = 0; j < n; j++)
-		{
-			for (size_t i = 0; i < 5; i++)
+		for (int i = 0; i < 5; i++)
+
+			for (int j = 0; j < n; j++)
 			{
 				if (i < 4 && root->children[i]->currentState[k][j]) {
 					matrix[k][br] = malloc((strlen(root->children[i]->currentState[k][j]) + 1) * sizeof(char));
 					strcpy(matrix[k][br++], root->children[i]->currentState[k][j]);
 				}
-
 				else if (i < 4) matrix[k][br++] = NULL;
-				else if(i==4 && root->children[n * n * (m - 1) - 1]->currentState[k][j]) {
+				else if (i == 4 && root->children[n * n * (m - 1) - 1]->currentState[k][j]) {
 					matrix[k][br] = malloc(6 * sizeof(char));
-					strcpy(matrix[k][br++], "\t...\t");
+					strcpy(matrix[k][br], "\t...\t");
 
-					matrix[k][br] = malloc((strlen(root->children[n*n*(m-1)-1]->currentState[k][j]) + 1) * sizeof(char));
+					matrix[k][br] = malloc((strlen(root->children[n * n * (m - 1) - 1]->currentState[k][j]) + 1) * sizeof(char));
 					strcpy(matrix[k][br++], root->children[n * n * (m - 1) - 1]->currentState[k][j]);
 				}
-
 				else matrix[k][br++] = NULL;
 			}
-		}
 	}
+
 	printMatrix(root->currentState);
 	for (int i = 0; i < m; i++)
 	{
